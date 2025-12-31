@@ -1,0 +1,48 @@
+# --- Python bytecode / caches ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+.envrc
+
+# --- Environment / secrets ---
+.env
+.env.*
+
+# --- Build / packaging ---
+build/
+dist/
+*.egg-info/
+
+# --- IDE / editor ---
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+*.log
+
+# --- Language/version managers ---
+.python-version
+.tool-versions
+
+# --- Notebooks ---
+.ipynb_checkpoints/
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+
+

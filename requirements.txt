@@ -1,0 +1,15 @@
+# LangChain + LangGraph implementation (only).
+#
+# Install:
+#   python -m pip install -r requirements.txt
+#
+# Vertex AI Gemini (no API keys) uses ADC:
+#   gcloud auth application-default login
+
+langchain>=0.2.0
+langchain-core>=0.2.0
+langgraph>=0.2.0
+langchain-google-vertexai>=2.0.0
+python-dotenv>=1.0.0
+
+
