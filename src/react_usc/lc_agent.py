@@ -20,7 +20,7 @@ from .prompts import (
     build_judge_prompt,
     build_reasoner_prompt,
 )
-from .schema import JudgeDecisionStructured, ReasonerDecisionStructured
+from .schema import get_judge_decision_schema, get_reasoner_decision_schema
 from .trace import trace_candidates, trace_judge
 from .tools import ToolRegistry
 from .utils import build_state_summary, safe_json_dumps, truncate
@@ -127,6 +127,10 @@ class LangGraphReActUSCAgent:
 
         # --- K parallel reasoners (USC) ---
         tools = self._tools.all()
+        # Build dynamic schema based on available tools to enforce valid args.
+        tool_schemas = [t.input_schema for t in tools]
+        reasoner_schema = get_reasoner_decision_schema(tool_schemas)
+        judge_schema = get_judge_decision_schema(tool_schemas)
 
         def call_reasoner(path_id: int) -> Dict[str, Any]:
             system, user = build_reasoner_prompt(
@@ -143,11 +147,33 @@ class LangGraphReActUSCAgent:
                             self._models.reasoner,
                             system=system,
                             user=user,
-                            schema=ReasonerDecisionStructured,
+                            schema=reasoner_schema,
                         )
-                        return normalize_reasoner_decision_obj(obj)
-                    except Exception:
+                        obj = normalize_reasoner_decision_obj(obj)
+
+                        # If structured output omitted required tool args (common on some backends),
+                        # force fallback to the text+JSON path to give the model more guidance.
+                        cand, errs = validate_reasoner_decision_dict(obj)
+                        if not cand:
+                            raise ValueError(f"invalid structured reasoner decision: {errs}")
+                        if cand.decision_type == "TOOL_CALL":
+                            tool_name = cand.tool_name or ""
+                            tool = self._tools.get(tool_name)
+                            if not tool:
+                                raise ValueError(f"unknown tool in structured output: {tool_name!r}")
+                            args = cand.tool_args or {}
+                            arg_errors = validate_json_obj(args, tool.input_schema)
+                            if arg_errors:
+                                raise ValueError(f"invalid structured tool args: {arg_errors}")
+
+                        return obj
+                    except Exception as e:
                         # Fall back to the legacy JSON parse path (some backends don't support structured output).
+                        if self._config.trace:
+                            print(
+                                f"  Reasoner[{path_id}] structured output failed; falling back to text JSON parsing: "
+                                f"{type(e).__name__}: {e}"
+                            )
                         pass
 
                 raw_text = invoke_chat_text(self._models.reasoner, system=system, user=user)
@@ -214,7 +240,11 @@ class LangGraphReActUSCAgent:
 
         # --- Judge ---
         system, user = build_judge_prompt(
-            user_query=user_query, state_summary=state_summary, candidates=candidates, config=self._config
+            user_query=user_query,
+            state_summary=state_summary,
+            candidates=candidates,
+            tools=tools,
+            config=self._config,
         )
         try:
             if self._config.use_structured_output:
@@ -224,11 +254,29 @@ class LangGraphReActUSCAgent:
                             self._models.judge,
                             system=system,
                             user=user,
-                            schema=JudgeDecisionStructured,
+                            schema=judge_schema,
                         )
                     )
-                except Exception:
+                    # If structured output omitted required tool args / tool_name, force fallback to text+JSON.
+                    judge_obj, judge_errs = validate_judge_decision_dict(judge_raw)
+                    if not judge_obj:
+                        raise ValueError(f"invalid structured judge decision: {judge_errs}")
+                    if judge_obj.decision_type == "TOOL_CALL":
+                        tool_name = judge_obj.tool_name or ""
+                        tool = self._tools.get(tool_name)
+                        if not tool:
+                            raise ValueError(f"unknown tool in structured output: {tool_name!r}")
+                        args = judge_obj.tool_args or {}
+                        arg_errors = validate_json_obj(args, tool.input_schema)
+                        if arg_errors:
+                            raise ValueError(f"invalid structured tool args: {arg_errors}")
+                except Exception as e:
                     # Fall back to the legacy JSON parse path (some backends don't support structured output).
+                    if self._config.trace:
+                        print(
+                            "  Judge structured output failed; falling back to text JSON parsing: "
+                            f"{type(e).__name__}: {e}"
+                        )
                     judge_raw = {}
             else:
                 judge_raw = {}

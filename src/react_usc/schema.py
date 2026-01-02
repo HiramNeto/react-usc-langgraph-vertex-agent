@@ -1,68 +1,85 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+"""
+Structured-output schemas for LangChain `with_structured_output(...)`.
 
-try:
-    # LangChain structured output works best with Pydantic schemas.
-    from pydantic import BaseModel  # type: ignore
-except Exception:  # pragma: no cover
-    BaseModel = object  # type: ignore[misc,assignment]
+We intentionally use plain JSON schema dicts (instead of Pydantic models) to avoid
+provider-specific incompatibilities. In particular, Vertex/Gemini logs noisy warnings
+for the JSON-schema key `additionalProperties` (commonly produced by Pydantic),
+even when it's harmless.
 
-try:
-    # Pydantic v2
-    from pydantic import ConfigDict  # type: ignore
+Cross-field constraints (e.g. tool_name required for TOOL_CALL) are enforced by our
+validators in `validation.py`, and we also do a "sanity validation" pass in the agent
+before accepting structured-output results (to trigger fallback to text parsing when
+structured outputs omit required tool args).
+"""
 
-    _HAS_CONFIGDICT = True
-except Exception:  # pragma: no cover
-    ConfigDict = None  # type: ignore[assignment]
-    _HAS_CONFIGDICT = False
-
-try:
-    from typing import Literal
-except Exception:  # pragma: no cover
-    from typing_extensions import Literal  # type: ignore
+from typing import Any, Dict, List, Sequence
 
 
-class ReasonerDecisionStructured(BaseModel):  # type: ignore[misc,valid-type]
+def _get_tool_args_options(tool_schemas: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Pydantic schema used with LangChain `with_structured_output(...)`.
-
-    Cross-field constraints (e.g. tool_name required for TOOL_CALL) are still enforced
-    by our existing validators in `validation.py` so we keep this lightweight.
+    Helper to build the `anyOf` options for tool_args.
     """
+    options = []
+    for s in tool_schemas:
+        # We assume s is a valid JSON schema for the arguments.
+        # We copy it to avoid mutating the original.
+        ts = s.copy()
+        # Add a title if missing, as some providers prefer named schemas in anyOf
+        if "title" not in ts:
+            ts["title"] = "tool_arguments"
+        options.append(ts)
+    
+    # Also allow empty object (for FINAL decisions where args are null/empty)
+    options.append({"type": "object", "properties": {}, "title": "empty_args"})
+    return options
 
-    decision_type: Literal["TOOL_CALL", "FINAL"]
-    tool_name: Optional[str] = None
-    tool_args: Optional[Dict[str, Any]] = None
-    final_answer: Optional[str] = None
-    brief_rationale: str
-    expected_signal: Optional[str] = None
 
-    if _HAS_CONFIGDICT:
-        model_config = ConfigDict(extra="forbid")  # type: ignore[assignment]
-    else:
-
-        class Config:  # pragma: no cover
-            extra = "forbid"
-
-
-class JudgeDecisionStructured(BaseModel):  # type: ignore[misc,valid-type]
+def get_reasoner_decision_schema(tool_schemas: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    Pydantic schema used with LangChain `with_structured_output(...)`.
+    Build a dynamic Reasoner schema where `tool_args` uses `anyOf`.
     """
+    return {
+        "title": "ReasonerDecision",
+        "description": "Single next-step decision from the REASONER: either call one tool with JSON args, or return a final answer.",
+        "type": "object",
+        "required": ["decision_type", "brief_rationale"],
+        "properties": {
+            "decision_type": {"type": "string", "enum": ["TOOL_CALL", "FINAL"]},
+            "tool_name": {"type": "string"},
+            "tool_args": {
+                "anyOf": _get_tool_args_options(tool_schemas)
+            },
+            "final_answer": {"type": "string"},
+            "brief_rationale": {"type": "string"},
+            "expected_signal": {"type": "string"},
+        },
+    }
 
-    decision_type: Literal["TOOL_CALL", "FINAL"]
-    selected_index: Optional[int] = None
-    tool_name: Optional[str] = None
-    tool_args: Optional[Dict[str, Any]] = None
-    final_answer: Optional[str] = None
-    justification: str
 
-    if _HAS_CONFIGDICT:
-        model_config = ConfigDict(extra="forbid")  # type: ignore[assignment]
-    else:
+def get_judge_decision_schema(tool_schemas: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Build a dynamic Judge schema where `tool_args` uses `anyOf`.
+    """
+    return {
+        "title": "JudgeDecision",
+        "description": "Decision from the JUDGE: select/synthesize one candidate decision, either call one tool or return a final answer.",
+        "type": "object",
+        "required": ["decision_type", "justification"],
+        "properties": {
+            "decision_type": {"type": "string", "enum": ["TOOL_CALL", "FINAL"]},
+            "selected_index": {"type": "integer"},
+            "tool_name": {"type": "string"},
+            "tool_args": {
+                 "anyOf": _get_tool_args_options(tool_schemas)
+            },
+            "final_answer": {"type": "string"},
+            "justification": {"type": "string"},
+        },
+    }
 
-        class Config:  # pragma: no cover
-            extra = "forbid"
 
-
+# Keep static fallbacks
+REASONER_DECISION_SCHEMA = get_reasoner_decision_schema([])
+JUDGE_DECISION_SCHEMA = get_judge_decision_schema([])

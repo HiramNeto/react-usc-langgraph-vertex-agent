@@ -19,6 +19,24 @@ def build_tools_block(tools: Sequence[ToolSpec]) -> str:
         )
     return "\n".join(parts)
 
+def _tool_name_list(tools: Sequence[ToolSpec]) -> str:
+    return ", ".join([t.name for t in tools])
+
+def _tool_examples_block(tools: Sequence[ToolSpec]) -> str:
+    """
+    Provide short, concrete examples so models reliably include required tool args.
+    """
+    examples: list[str] = []
+    for t in tools:
+        # Minimal hand-written examples for our demo tools.
+        if t.name == "calculator":
+            examples.append('{"decision_type":"TOOL_CALL","tool_name":"calculator","tool_args":{"expression":"2+2*10"},"final_answer":null,"brief_rationale":"Compute the expression to avoid arithmetic mistakes.","expected_signal":null}')
+        elif t.name == "simple_search":
+            examples.append('{"decision_type":"TOOL_CALL","tool_name":"simple_search","tool_args":{"query":"What is ReAct and self-consistency?"},"final_answer":null,"brief_rationale":"Search the KB for a precise definition.","expected_signal":null}')
+    if not examples:
+        return ""
+    return "\n".join(["EXAMPLES (copy these shapes):"] + [f"- {ex}" for ex in examples])
+
 
 def reasoner_decision_to_json(d: ReasonerDecision) -> Dict[str, Any]:
     return {
@@ -65,9 +83,13 @@ def build_reasoner_prompt(
             "Return ONLY a JSON object that matches ReasonerDecision with either:",
             '- decision_type="TOOL_CALL" and tool_name/tool_args set, final_answer null; OR',
             '- decision_type="FINAL" and final_answer set, tool_name/tool_args null.',
+            f"tool_name MUST be one of: {_tool_name_list(tools)}",
+            "If decision_type is TOOL_CALL, tool_args MUST include ALL required keys from that tool's input_schema. Do not return empty {}.",
             "Do NOT wrap the JSON in markdown fences (no ```json).",
             "brief_rationale is REQUIRED: write 1-2 short sentences explaining why this is the best next step.",
             "Do NOT use placeholders like 'N/A'.",
+            "",
+            _tool_examples_block(tools),
             "",
             "JSON_ONLY:",
         ]
@@ -80,6 +102,7 @@ def build_judge_prompt(
     user_query: str,
     state_summary: str,
     candidates: Sequence[ReasonerDecision],
+    tools: Sequence[ToolSpec],
     config: AgentConfig,
 ) -> Tuple[str, str]:
     system = (
@@ -106,6 +129,9 @@ def build_judge_prompt(
             "CANDIDATES:",
             json.dumps(candidates_json, ensure_ascii=False),
             "",
+            "AVAILABLE_TOOLS:",
+            build_tools_block(tools),
+            "",
             "RUBRIC (score high on these):",
             "- query alignment",
             "- consistency with observations",
@@ -117,6 +143,8 @@ def build_judge_prompt(
             '- If selection_strategy="select_one": set selected_index to the chosen candidate index and copy its decision.',
             '- If selection_strategy="synthesize_one": selected_index must be null; you may synthesize a better single decision.',
             "- If allow_tool_synthesis=false: do not invent a tool call that is not present among candidates.",
+            f"tool_name MUST be one of: {_tool_name_list(tools)}",
+            "If decision_type is TOOL_CALL, tool_args MUST include ALL required keys from that tool's input_schema. Do not return empty {}.",
             "",
             "OUTPUT_FORMAT:",
             "Return ONLY a JSON object matching JudgeDecision.",
@@ -124,6 +152,8 @@ def build_judge_prompt(
             "Do NOT nest the decision under a 'decision' key. Do NOT include extra keys like 'comment'.",
             "justification is REQUIRED: write 1-2 short sentences explaining why this is the best single next step.",
             "Do NOT use placeholders like 'N/A'.",
+            "",
+            _tool_examples_block(tools),
             "",
             "JSON_ONLY:",
         ]
