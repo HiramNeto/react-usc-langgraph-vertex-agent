@@ -5,38 +5,6 @@ from typing import Any, Dict, Sequence, Tuple
 
 from .models import AgentConfig, ReasonerDecision, ToolSpec
 
-
-def reasoner_decision_schema() -> Dict[str, Any]:
-    # JSON-schema-like; providers may enforce this in "JSON mode".
-    return {
-        "type": "object",
-        "required": ["decision_type", "brief_rationale"],
-        "properties": {
-            "decision_type": {"type": "string"},
-            "tool_name": {"type": ["string", "null"]},  # informational
-            "tool_args": {"type": ["object", "null"]},
-            "final_answer": {"type": ["string", "null"]},
-            "brief_rationale": {"type": "string"},
-            "expected_signal": {"type": ["string", "null"]},
-        },
-    }
-
-
-def judge_decision_schema() -> Dict[str, Any]:
-    return {
-        "type": "object",
-        "required": ["decision_type", "justification"],
-        "properties": {
-            "decision_type": {"type": "string"},
-            "selected_index": {"type": ["integer", "null"]},
-            "tool_name": {"type": ["string", "null"]},
-            "tool_args": {"type": ["object", "null"]},
-            "final_answer": {"type": ["string", "null"]},
-            "justification": {"type": "string"},
-        },
-    }
-
-
 def build_tools_block(tools: Sequence[ToolSpec]) -> str:
     parts = []
     for t in tools:
@@ -50,17 +18,6 @@ def build_tools_block(tools: Sequence[ToolSpec]) -> str:
             )
         )
     return "\n".join(parts)
-
-
-def build_state_summary(*, observations: Sequence[str], step_index: int, max_steps: int) -> str:
-    obs_lines = "\n".join([f"- {o}" for o in observations[-10:]]) if observations else "- (none)"
-    return "\n".join(
-        [
-            f"step: {step_index}/{max_steps}",
-            "observations (most recent last):",
-            obs_lines,
-        ]
-    )
 
 
 def reasoner_decision_to_json(d: ReasonerDecision) -> Dict[str, Any]:
@@ -172,38 +129,4 @@ def build_judge_prompt(
         ]
     )
     return system, user
-
-
-def build_repair_prompt(
-    *,
-    user_query: str,
-    tool: ToolSpec,
-    existing_args: Dict[str, Any],
-    validation_errors: Sequence[str],
-) -> Tuple[str, str, Dict[str, Any]]:
-    system = (
-        "You are a tool-argument repair helper.\n"
-        "Return ONLY a JSON object of tool arguments matching the tool schema.\n"
-    )
-    user = "\n".join(
-        [
-            "REPAIR TOOL ARGS",
-            "",
-            "ORIGINAL_USER_QUERY:",
-            user_query.strip(),
-            "",
-            "TOOL_SCHEMA:",
-            json.dumps(tool.input_schema, ensure_ascii=False),
-            "",
-            "VALIDATION_ERRORS:",
-            json.dumps(list(validation_errors), ensure_ascii=False),
-            "",
-            "EXISTING_ARGS_JSON:",
-            json.dumps(existing_args, ensure_ascii=False),
-            "",
-            "JSON_ONLY:",
-        ]
-    )
-    return system, user, tool.input_schema
-
 

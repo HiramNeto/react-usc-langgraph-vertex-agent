@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import ast
 import math
-import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
 from .models import ToolSpec
-from .utils import safe_json_dumps, simple_word_hits
+from .utils import simple_word_hits
 
 
 class ToolRegistry:
@@ -129,9 +128,5 @@ def make_simple_search_tool() -> ToolSpec:
         },
         func=_search,
     )
-
-
-def tool_output_preview(value: Any, max_chars: int) -> str:
-    return safe_json_dumps(value)[:max_chars]
 
 

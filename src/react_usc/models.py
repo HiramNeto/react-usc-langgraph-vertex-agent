@@ -45,6 +45,9 @@ class AgentConfig:
     trace: bool
     tool_result_max_chars: int
     timeout_seconds: float = 20.0
+    # If true, use LangChain structured output (`with_structured_output`) when possible.
+    # The agent will fall back to text JSON parsing if the backend doesn't support it.
+    use_structured_output: bool = True
 
 
 @dataclass(frozen=True)

@@ -84,7 +84,11 @@ This keeps the loop readable: the “graph wiring” is separated from tool exec
 - `src/react_usc/lc_agent.py`: **LangGraphReActUSCAgent** (USC fan-out + judge + single tool execution)
 - `src/react_usc/lc_vertex.py`: helper to create **LangChain ChatVertexAI** model instances
 - `src/react_usc/models.py`: typed dataclasses (`AgentConfig`, `ModelConfig`, decisions, tools)
-- `src/react_usc/prompts.py`: reasoner/judge prompt builders + JSON “schemas”
+- `src/react_usc/prompts.py`: reasoner/judge prompt builders
+- `src/react_usc/llm_io.py`: LangChain invocation helpers + robust JSON parsing helpers
+- `src/react_usc/decision_normalize.py`: normalizers for model output (fix common deviations before validation)
+- `src/react_usc/trace.py`: trace-print helpers (candidates + judge decision)
+- `src/react_usc/schema.py`: structured output schemas (Pydantic) for LangChain `with_structured_output`
 - `src/react_usc/validation.py`: lightweight decision + tool-arg validation
 - `src/react_usc/tools.py`: tool registry + example tools (`calculator`, `simple_search`)
 - `env.example`: env var template (copy to `.env`)
