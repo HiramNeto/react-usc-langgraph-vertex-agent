@@ -13,6 +13,7 @@ It is designed to run on **Vertex AI Gemini** using **GCP CLI authentication (AD
 - **Judge selection**: choose the best single next step (or synthesize one)
 - **Single tool execution**: *never* execute tools inside parallel branches
 - **Structured decisions**: models are instructed to output **JSON-only** decisions
+- **Resilience**: Optional "Reflect and Retry" plugin to recover from tool failures
 - **Tracing**: prints candidates, judge choice, tool I/O, and final answers
 
 ---
@@ -163,6 +164,43 @@ Example:
 REASONER_MODEL_NAME="gemini-2.5-flash"
 JUDGE_MODEL_NAME="gemini-2.5-pro"
 ```
+
+---
+
+### Resilience: Reflect and Retry Plugin
+
+This project includes a powerful `ReflectAndRetryToolPlugin` (in `src/react_usc/plugins.py`) that acts as a safety layer around tool execution. It intercepts errors and uses an LLM to decide on a recovery strategy:
+
+1.  **RETRY (Fix)**: If the error is due to bad arguments (e.g., missing keys), the model generates fixed arguments, and the tool is retried immediately.
+2.  **WAIT (Transient)**: If the error is transient (e.g., `503 Service Unavailable`, network timeout), the plugin waits (with exponential backoff) and retries.
+3.  **ABORT (Fold)**: If the error is fatal (e.g., `403 Forbidden`, wrong tool), the plugin aborts and returns a helpful error message to the agent's reasoning loop.
+
+**Usage in `main.py`:**
+
+```python
+from src.react_usc.plugins import ReflectAndRetryToolPlugin
+
+reflection_plugin = ReflectAndRetryToolPlugin(
+    model=reasoner_model,  # Model used for reflection
+    max_retries=3,         # Max retry attempts per tool call
+    backoff_seconds=1.0,   # Base wait time for transient errors
+    trace=True             # Log reflection steps
+)
+
+agent = LangGraphReActUSCAgent(
+    ...,
+    plugins=[reflection_plugin]
+)
+```
+
+**Writing Tools for Reflection:**
+
+To maximize the effectiveness of the reflection plugin, write tools that raise **descriptive exceptions**.
+
+*   **Good**: `raise ValueError("Missing required parameter 'user_id'.")` -> Model sees this and adds `user_id`.
+*   **Good**: `raise RuntimeError("503 Service Unavailable")` -> Model sees this and chooses `WAIT`.
+*   **Good**: `raise PermissionError("403 Forbidden: Missing scope 'admin'")` -> Model sees this and chooses `ABORT`.
+*   **Bad**: `raise Exception("Error")` -> Model has no context to fix it.
 
 ---
 
