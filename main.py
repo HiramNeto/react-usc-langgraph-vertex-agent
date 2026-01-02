@@ -75,6 +75,7 @@ def main() -> None:
         trace=os.getenv("TRACE", "true").lower() == "true",
         tool_result_max_chars=int(os.getenv("TOOL_RESULT_MAX_CHARS", "400")),
         timeout_seconds=float(os.getenv("LLM_TIMEOUT_SECONDS", "5.0")),
+        use_structured_output=os.getenv("USE_STRUCTURED_OUTPUT", "true").lower() == "true",
     )
 
     agent = LangGraphReActUSCAgent(

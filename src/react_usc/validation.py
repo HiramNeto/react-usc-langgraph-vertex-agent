@@ -122,10 +122,10 @@ def validate_judge_decision_dict(d: Any) -> Tuple[Optional[JudgeDecision], List[
     final_answer = d.get("final_answer")
 
     if dt == "TOOL_CALL":
-        if tool_name is not None and not isinstance(tool_name, str):
-            errors.append("tool_name must be string or null")
+        if not isinstance(tool_name, str) or not tool_name.strip():
+            errors.append("tool_name must be a non-empty string for TOOL_CALL")
         if tool_args is not None and not isinstance(tool_args, dict):
-            errors.append("tool_args must be object or null")
+            errors.append("tool_args must be object or null for TOOL_CALL")
         if final_answer is not None:
             errors.append("final_answer must be null for TOOL_CALL")
     elif dt == "FINAL":
