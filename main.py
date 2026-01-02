@@ -14,7 +14,9 @@ from dotenv import load_dotenv
 from src.react_usc.lc_agent import LangGraphModels, LangGraphReActUSCAgent
 from src.react_usc.lc_vertex import make_chat_vertex_ai
 from src.react_usc.models import AgentConfig, ModelConfig, RetryConfig
+from src.react_usc.plugins import ReflectAndRetryToolPlugin
 from src.react_usc.tools import make_calculator_tool, make_simple_search_tool
+from src.react_usc.test_tools import make_flaky_tool
 
 
 def _opt_int_env(name: str) -> int | None:
@@ -31,7 +33,7 @@ def main() -> None:
     # Auto-load .env from repo root (if present). Does not override existing env vars.
     load_dotenv(override=False)
 
-    tools = [make_calculator_tool(), make_simple_search_tool()]
+    tools = [make_calculator_tool(), make_simple_search_tool(), make_flaky_tool()]
     # LangChain + LangGraph implementation only (Vertex AI Gemini via ADC).
     # Prereq:
     #   python -m pip install -r requirements.txt
@@ -78,10 +80,18 @@ def main() -> None:
         use_structured_output=os.getenv("USE_STRUCTURED_OUTPUT", "true").lower() == "true",
     )
 
+    reflection_plugin = ReflectAndRetryToolPlugin(
+        model=reasoner_lc,
+        max_retries=3,
+        trace=config.trace,
+        backoff_seconds=1.0,
+    )
+
     agent = LangGraphReActUSCAgent(
         models=LangGraphModels(reasoner=reasoner_lc, judge=judge_lc),
         tools=tools,
         config=config,
+        plugins=[reflection_plugin],
     )
 
     print("\n=== Demo 1: math ===")
@@ -91,6 +101,21 @@ def main() -> None:
     print("\n=== Demo 2: search ===")
     answer2 = agent.run("Search: What is ReAct and how does self-consistency help?")
     print("\nFINAL ANSWER:", answer2)
+
+    print("\n=== Demo 3: API Client - RETRY (Arg Fix) ===")
+    # Expected: 400 Bad Request (missing param), Reflection sees it, retries with include_profile=true.
+    answer3 = agent.run("Fetch details for user 123 using the api_client.")
+    print("\nFINAL ANSWER:", answer3)
+
+    print("\n=== Demo 4: API Client - WAIT (Transient 503) ===")
+    # Expected: 503 Service Unavailable, Reflection chooses WAIT, retries same args, succeeds eventually.
+    answer4 = agent.run("Sync data to the upstream service using POST /api/v1/sync/data.")
+    print("\nFINAL ANSWER:", answer4)
+
+    print("\n=== Demo 5: API Client - ABORT (Fatal 403) ===")
+    # Expected: 403 Forbidden, Reflection sees it's a permission issue, chooses ABORT.
+    answer5 = agent.run("Delete the system database using the api_client at /api/v1/admin/system.")
+    print("\nFINAL ANSWER:", answer5)
 
 
 if __name__ == "__main__":

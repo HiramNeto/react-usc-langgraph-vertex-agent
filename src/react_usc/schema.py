@@ -80,6 +80,28 @@ def get_judge_decision_schema(tool_schemas: Sequence[Dict[str, Any]]) -> Dict[st
     }
 
 
+def get_reflection_decision_schema(tool_schemas: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Build a dynamic Reflection schema for retry logic.
+    """
+    return {
+        "title": "ReflectionDecision",
+        "description": "Decision from the REFLECTION model: either retry with fixed args or abort.",
+        "type": "object",
+        "required": ["analysis", "verdict"],
+        "properties": {
+            "analysis": {"type": "string", "description": "Brief thought process debugging the error."},
+            "verdict": {"type": "string", "enum": ["RETRY", "WAIT", "ABORT"]},
+            "retry_args": {
+                "anyOf": _get_tool_args_options(tool_schemas),
+                "description": "Corrected arguments if verdict is RETRY. Ignored if verdict is WAIT or ABORT."
+            },
+            "abort_suggestion": {"type": "string", "description": "Explanation for the agent why this tool is wrong if verdict is ABORT."}
+        },
+    }
+
+
 # Keep static fallbacks
 REASONER_DECISION_SCHEMA = get_reasoner_decision_schema([])
 JUDGE_DECISION_SCHEMA = get_judge_decision_schema([])
+REFLECTION_DECISION_SCHEMA = get_reflection_decision_schema([])
