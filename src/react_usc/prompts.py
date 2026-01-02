@@ -160,3 +160,48 @@ def build_judge_prompt(
     )
     return system, user
 
+def build_reflection_prompt(
+    *,
+    user_query: str,
+    tool_name: str,
+    tool_args: Dict[str, Any],
+    error: str,
+    tools: Sequence[ToolSpec],
+) -> Tuple[str, str]:
+    system = (
+        "You are a Tool Usage Expert debugging a failed tool call.\n"
+        "Analyze the error and decide whether to RETRY with corrected args, WAIT for transient errors, or ABORT if the tool is inappropriate.\n"
+        "Return ONLY a JSON object matching the ReflectionDecision schema.\n"
+    )
+
+    user = "\n".join(
+        [
+            "REFLECTION INSTRUCTIONS:",
+            "A tool execution failed. Your goal is to fix it if possible, or advise the agent to stop if the tool is wrong.",
+            "",
+            "ORIGINAL USER QUERY:",
+            user_query.strip(),
+            "",
+            "FAILED TOOL CALL:",
+            f"Tool: {tool_name}",
+            f"Args: {json.dumps(tool_args, ensure_ascii=False)}",
+            f"Error: {error}",
+            "",
+            "AVAILABLE TOOLS:",
+            build_tools_block(tools),
+            "",
+            "DECISION RULES:",
+            "1. RETRY: If the error is a syntax error, invalid argument format, or hallucinated argument, and the tool IS appropriate for the query -> Generate corrected 'retry_args'.",
+            "2. WAIT: If the error looks transient (e.g. network timeout, rate limit, server error 5xx, connection reset) and arguments look correct -> Select WAIT to pause and retry with the SAME arguments.",
+            "3. ABORT: If the tool itself is not capable of handling the query (e.g. using calculator for search), or if you cannot fix it -> Provide an 'abort_suggestion' explaining why and what tool might be better.",
+            "",
+            "OUTPUT_FORMAT:",
+            "Return ONLY a JSON object matching ReflectionDecision.",
+            "Do NOT wrap the JSON in markdown fences (no ```json).",
+            "If verdict is RETRY, 'retry_args' must be valid JSON matching the tool's schema.",
+            "If verdict is WAIT or ABORT, 'retry_args' should be null/omitted.",
+            "",
+            "JSON_ONLY:",
+        ]
+    )
+    return system, user

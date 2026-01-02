@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, TypedDict, cast
 from .decision_normalize import normalize_judge_decision_obj, normalize_reasoner_decision_obj
 from .llm_io import invoke_chat_structured_obj, invoke_chat_text, json_loads_object
 from .models import AgentConfig, JudgeDecision, ReasonerDecision, ToolSpec
+from .plugins import ReflectAndRetryToolPlugin
 from .prompts import (
     build_judge_prompt,
     build_reasoner_prompt,
@@ -71,11 +72,19 @@ class LangGraphReActUSCAgent:
         models: LangGraphModels,
         tools: Sequence[ToolSpec],
         config: AgentConfig,
+        plugins: Sequence[Any] = (),
     ) -> None:
         _require_langchain()
         self._models = models
         self._tools = ToolRegistry(tools)
         self._config = config
+        
+        # Find the retry plugin if present
+        self._retry_plugin: Optional[ReflectAndRetryToolPlugin] = None
+        for p in plugins:
+            if isinstance(p, ReflectAndRetryToolPlugin):
+                self._retry_plugin = p
+                break
 
         # Lazy imports after dependency check.
         from langgraph.graph import END, START, StateGraph  # type: ignore
@@ -337,11 +346,30 @@ class LangGraphReActUSCAgent:
         if self._config.trace:
             print(f"  Tool call: {tool.name} args={truncate(safe_json_dumps(args), 220)}")
         try:
-            result = tool.func(args)
-            rendered = truncate(safe_json_dumps(result), self._config.tool_result_max_chars)
-            if self._config.trace:
-                print(f"  Tool result: {tool.name} => {rendered}")
-            obs = f"{tool.name} => {rendered}"
+            if self._retry_plugin:
+                # Use the retry plugin to execute with reflection loop
+                result = self._retry_plugin.run(
+                    tool_name=tool.name,
+                    tool_args=args,
+                    tool_func=tool.func,
+                    all_tools=self._tools.all(),
+                    user_query=state["user_query"],
+                    tool_input_schema=tool.input_schema,
+                )
+            else:
+                result = tool.func(args)
+
+            # Check for special abort signal from reflection
+            if isinstance(result, str) and result.startswith("Reflection Error:"):
+                 obs = result
+                 if self._config.trace:
+                    print(f"  Tool reflection abort: {obs}")
+            else:
+                rendered = truncate(safe_json_dumps(result), self._config.tool_result_max_chars)
+                if self._config.trace:
+                    print(f"  Tool result: {tool.name} => {rendered}")
+                obs = f"{tool.name} => {rendered}"
+
         except Exception as e:
             msg = truncate(f"{type(e).__name__}: {e}", self._config.tool_result_max_chars)
             if self._config.trace:
