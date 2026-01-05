@@ -365,16 +365,39 @@ class LangGraphReActUSCAgent:
                  if self._config.trace:
                     print(f"  Tool reflection abort: {obs}")
             else:
-                rendered = truncate(safe_json_dumps(result), self._config.tool_result_max_chars)
+                rendered_full = safe_json_dumps(result)
+                
+                # Truncate for terminal trace if a limit is set
+                if self._config.tool_result_max_chars > 0:
+                    rendered_trace = truncate(rendered_full, self._config.tool_result_max_chars)
+                else:
+                    rendered_trace = rendered_full
+
                 if self._config.trace:
-                    print(f"  Tool result: {tool.name} => {rendered}")
-                obs = f"{tool.name} => {rendered}"
+                    print(f"  Tool result: {tool.name} => {rendered_trace}")
+                
+                # Truncate for agent observation only if explicitly enabled
+                if self._config.truncate_agent_observations and self._config.tool_result_max_chars > 0:
+                    obs = f"{tool.name} => {rendered_trace}"
+                else:
+                    obs = f"{tool.name} => {rendered_full}"
 
         except Exception as e:
-            msg = truncate(f"{type(e).__name__}: {e}", self._config.tool_result_max_chars)
+            msg = f"{type(e).__name__}: {e}"
+            # Truncate exception messages for trace only
+            if self._config.tool_result_max_chars > 0:
+                 msg_trace = truncate(msg, self._config.tool_result_max_chars)
+            else:
+                 msg_trace = msg
+
             if self._config.trace:
-                print(f"  Tool exception: {tool.name} => {msg}")
-            obs = f"{tool.name} => tool_exception: {msg}"
+                print(f"  Tool exception: {tool.name} => {msg_trace}")
+            
+            # Truncate exception for agent observation only if explicitly enabled
+            if self._config.truncate_agent_observations and self._config.tool_result_max_chars > 0:
+                obs = f"{tool.name} => tool_exception: {msg_trace}"
+            else:
+                obs = f"{tool.name} => tool_exception: {msg}"
 
         return {**state, "observations": state["observations"] + [obs]}
 

@@ -44,6 +44,9 @@ class AgentConfig:
     retry: RetryConfig
     trace: bool
     tool_result_max_chars: int
+    # If true, tool outputs are truncated before being fed to the agent (using tool_result_max_chars).
+    # If false, the agent always sees the full output, and truncation only applies to terminal logs.
+    truncate_agent_observations: bool = False
     timeout_seconds: float = 20.0
     # If true, use LangChain structured output (`with_structured_output`) when possible.
     # The agent will fall back to text JSON parsing if the backend doesn't support it.
