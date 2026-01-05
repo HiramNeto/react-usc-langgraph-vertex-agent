@@ -14,6 +14,7 @@ It is designed to run on **Vertex AI Gemini** using **GCP CLI authentication (AD
 - **Single tool execution**: *never* execute tools inside parallel branches
 - **Structured decisions**: models are instructed to output **JSON-only** decisions
 - **Resilience**: Optional "Reflect and Retry" plugin to recover from tool failures
+- **A2A Support**: Optional wrapper to expose the agent via standard Agent-to-Agent protocols
 - **Tracing**: prints candidates, judge choice, tool I/O, and final answers
 
 ---
@@ -82,7 +83,9 @@ This keeps the loop readable: the “graph wiring” is separated from tool exec
 ### Project layout
 
 - `main.py`: demo runner (loads `.env`, builds tools/config, runs the agent)
+- `serve_agent.py`: A2A server runner (exposes agent via HTTP)
 - `src/react_usc/lc_agent.py`: **LangGraphReActUSCAgent** (USC fan-out + judge + single tool execution)
+- `src/react_usc/a2a.py`: Optional A2A wrapper and FastAPI integration
 - `src/react_usc/lc_vertex.py`: helper to create **LangChain ChatVertexAI** model instances
 - `src/react_usc/models.py`: typed dataclasses (`AgentConfig`, `ModelConfig`, decisions, tools)
 - `src/react_usc/prompts.py`: reasoner/judge prompt builders
@@ -206,6 +209,8 @@ To maximize the effectiveness of the reflection plugin, write tools that raise *
 
 ### Run
 
+**Demo Mode:**
+
 ```bash
 python main.py
 ```
@@ -216,6 +221,23 @@ You should see trace logs for each step:
 - judge selection + short justification
 - tool execution inputs/outputs
 - final answer
+
+**A2A Server Mode:**
+
+To expose the agent via an A2A-compliant HTTP API, install the optional server dependencies:
+
+```bash
+pip install fastapi uvicorn
+```
+
+Then run:
+
+```bash
+python serve_agent.py
+```
+
+The agent card will be available at `http://localhost:8000/.well-known/a2a.json`.
+You can post tasks to `http://localhost:8000/tasks`.
 
 ---
 
@@ -332,5 +354,3 @@ This implementation **expects** reasoner and judge to return **JSON objects** (n
 Prompts explicitly instruct “JSON ONLY”, and the Vertex configuration in LangChain should be set so outputs are reliably parseable.
 
 If you see parsing errors, tighten prompts or add an output parser (LangChain) that retries once on invalid JSON.
-
-
