@@ -6,7 +6,7 @@ from typing import Any, Optional, Sequence
 
 
 def truncate(s: str, max_chars: int) -> str:
-    if len(s) <= max_chars:
+    if max_chars <= 0 or len(s) <= max_chars:
         return s
     # Keep suffix info for debugging.
     return s[: max(0, max_chars - 24)] + f"... [truncated {len(s)} chars]"
