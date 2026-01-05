@@ -365,10 +365,9 @@ class LangGraphReActUSCAgent:
                  if self._config.trace:
                     print(f"  Tool reflection abort: {obs}")
             else:
-                # Never truncate the observation fed to the agent (pass 0/negative to disable truncation)
                 rendered_full = safe_json_dumps(result)
                 
-                # Truncate only for the terminal trace if a limit is set
+                # Truncate for terminal trace if a limit is set
                 if self._config.tool_result_max_chars > 0:
                     rendered_trace = truncate(rendered_full, self._config.tool_result_max_chars)
                 else:
@@ -377,8 +376,11 @@ class LangGraphReActUSCAgent:
                 if self._config.trace:
                     print(f"  Tool result: {tool.name} => {rendered_trace}")
                 
-                # The agent sees the full result
-                obs = f"{tool.name} => {rendered_full}"
+                # Truncate for agent observation only if explicitly enabled
+                if self._config.truncate_agent_observations and self._config.tool_result_max_chars > 0:
+                    obs = f"{tool.name} => {rendered_trace}"
+                else:
+                    obs = f"{tool.name} => {rendered_full}"
 
         except Exception as e:
             msg = f"{type(e).__name__}: {e}"
@@ -391,8 +393,11 @@ class LangGraphReActUSCAgent:
             if self._config.trace:
                 print(f"  Tool exception: {tool.name} => {msg_trace}")
             
-            # Agent sees full exception details
-            obs = f"{tool.name} => tool_exception: {msg}"
+            # Truncate exception for agent observation only if explicitly enabled
+            if self._config.truncate_agent_observations and self._config.tool_result_max_chars > 0:
+                obs = f"{tool.name} => tool_exception: {msg_trace}"
+            else:
+                obs = f"{tool.name} => tool_exception: {msg}"
 
         return {**state, "observations": state["observations"] + [obs]}
 
