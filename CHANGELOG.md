@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Imports in tests and examples now use `react_usc` instead of `src.react_usc`
 - Executor classes now use shared salvage functions from `_internal/salvage.py`
 - Added `httpx` to `a2a` optional dependencies (required for FastAPI TestClient)
+- README now reflects current project layout and configuration behavior
 
 ### Fixed
 - Provider tests mock patching for Python 3.12+ compatibility (patching lazy imports correctly)

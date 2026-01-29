@@ -159,7 +159,6 @@ pip install -e ".[all]"
     ├── config.py                     # Configuration classes (AgentConfig, ModelConfig, RetryConfig)
     ├── decisions.py                  # Decision dataclasses (ReasonerDecision, JudgeDecision)
     ├── types.py                      # Type aliases, constants, and ToolSpec
-    ├── models.py                     # Re-exports for backward compatibility
     ├── executors.py                  # ReasonerExecutor, JudgeExecutor, ToolExecutor
     ├── exceptions.py                 # Custom exception hierarchy
     ├── logging.py                    # Centralized logging configuration
@@ -181,6 +180,9 @@ pip install -e ".[all]"
         ├── __init__.py
         └── a2a.py                    # A2A wrapper and FastAPI integration
 ```
+
+Note: the legacy `react_usc.models` re-export module has been removed. Import from
+`react_usc.types`, `react_usc.config`, or `react_usc.decisions` directly.
 
 ---
 
@@ -217,9 +219,11 @@ gcloud auth application-default login
 
 ---
 
-### Configure with `.env` (auto-loaded)
+### Configure with `.env` (examples auto-load)
 
 The example scripts call `python-dotenv`'s `load_dotenv()`, so a root `.env` is loaded automatically.
+The core library does not auto-load environment variables, so set them in your shell/runner if
+you are integrating directly.
 
 Create `.env` by copying `env.example`:
 
@@ -257,13 +261,14 @@ JUDGE_MODEL_NAME="gemini-2.5-pro"
 
 ### Configuration Reference
 
-All configuration options with their defaults:
+All configuration options with their defaults from `env.example`. The example
+scripts also apply their own fallback defaults when variables are unset.
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
 | `VERTEX_PROJECT_ID` | (required) | Your GCP project ID |
 | `VERTEX_LOCATION` | `us-central1` | Vertex AI region |
-| `VERTEX_MODEL` | `gemini-2.0-flash-001` | Default Gemini model |
+| `VERTEX_MODEL` | `gemini-2.5-flash` | Default Gemini model |
 | `REASONER_MODEL_NAME` | `VERTEX_MODEL` | Model for reasoners |
 | `REASONER_TEMPERATURE` | `0.7` | Reasoner sampling temperature |
 | `REASONER_MAX_TOKENS` | (provider default) | Max output tokens for reasoners |
@@ -277,6 +282,7 @@ All configuration options with their defaults:
 | `TRUNCATE_AGENT_OBSERVATIONS` | `false` | Truncate observations sent to LLM |
 | `LLM_TIMEOUT_SECONDS` | `30.0` | Timeout for parallel reasoner calls |
 | `USE_STRUCTURED_OUTPUT` | `true` | Use LangChain structured output |
+| `PORT` | `8000` | A2A server port |
 
 ---
 
@@ -604,7 +610,7 @@ Keep schemas minimal — the validator is intentionally lightweight.
 
 - **Structured output failures**
   - The agent automatically falls back to text JSON parsing
-  - Enable `USC_LOG_STRUCTURED_OUTPUT=true` for debugging
+  - Enable `log_structured_output=True` on `AgentConfig` for debugging
 
 ---
 
@@ -631,7 +637,6 @@ The agent handles JSON parsing failures gracefully:
   - Created `integrations/` subpackage for optional integrations (A2A)
   - Renamed `lc_agent.py` to `agent.py` and `logging_config.py` to `logging.py`
 - Optional dependencies: `pip install react-usc[vertex]`, `pip install react-usc[a2a]`
-- Backward compatible: `models.py` re-exports all types for existing code
 
 **v0.3.0**
 - Refactored to library structure: core library in `src/react_usc/`, examples in `examples/`
