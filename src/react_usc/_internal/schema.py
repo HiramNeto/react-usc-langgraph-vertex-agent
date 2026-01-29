@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Structured-output schemas for LangChain `with_structured_output(...)`.
 
@@ -13,6 +11,7 @@ validators in `validation.py`, and we also do a "sanity validation" pass in the 
 before accepting structured-output results (to trigger fallback to text parsing when
 structured outputs omit required tool args).
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence
 
@@ -80,28 +79,46 @@ def get_judge_decision_schema(tool_schemas: Sequence[Dict[str, Any]]) -> Dict[st
     }
 
 
-def get_reflection_decision_schema(tool_schemas: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def get_reflection_decision_schema(tool_input_schema: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Build a dynamic Reflection schema for retry logic.
+    Build a dynamic Reflection schema where `retry_args` matches the failed tool's schema.
+    
+    Args:
+        tool_input_schema: The JSON schema for the tool that failed
+    
+    Returns:
+        JSON schema for ReflectionDecision
     """
+    # Copy the tool schema to avoid mutation
+    retry_args_schema = tool_input_schema.copy() if tool_input_schema else {"type": "object", "properties": {}}
+    if "title" not in retry_args_schema:
+        retry_args_schema["title"] = "retry_arguments"
+    
     return {
         "title": "ReflectionDecision",
-        "description": "Decision from the REFLECTION model: either retry with fixed args or abort.",
+        "description": "Decision from the reflection model: analyze a failed tool call and decide whether to retry, wait, or abort.",
         "type": "object",
         "required": ["analysis", "verdict"],
         "properties": {
-            "analysis": {"type": "string", "description": "Brief thought process debugging the error."},
-            "verdict": {"type": "string", "enum": ["RETRY", "WAIT", "ABORT"]},
-            "retry_args": {
-                "anyOf": _get_tool_args_options(tool_schemas),
-                "description": "Corrected arguments if verdict is RETRY. Ignored if verdict is WAIT or ABORT."
+            "analysis": {
+                "type": "string",
+                "description": "Analysis of why the tool call failed and what can be done about it.",
             },
-            "abort_suggestion": {"type": "string", "description": "Explanation for the agent why this tool is wrong if verdict is ABORT."}
+            "verdict": {
+                "type": "string",
+                "enum": ["RETRY", "WAIT", "ABORT"],
+                "description": "RETRY with new args, WAIT and retry same args, or ABORT the retry loop.",
+            },
+            "retry_args": retry_args_schema,
+            "abort_suggestion": {
+                "type": "string",
+                "description": "Suggestion message if verdict is ABORT.",
+            },
         },
     }
 
 
-# Keep static fallbacks
+# Static fallbacks for when no tools are provided
 REASONER_DECISION_SCHEMA = get_reasoner_decision_schema([])
 JUDGE_DECISION_SCHEMA = get_judge_decision_schema([])
-REFLECTION_DECISION_SCHEMA = get_reflection_decision_schema([])
+REFLECTION_DECISION_SCHEMA = get_reflection_decision_schema({})

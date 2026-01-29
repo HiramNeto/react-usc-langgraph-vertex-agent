@@ -1,17 +1,33 @@
+"""
+Flaky API tool example for the ReAct USC Agent.
+
+This module provides a simulated API client with various failure modes,
+useful for testing the agent's error handling and retry capabilities.
+"""
+from __future__ import annotations
 
 from typing import Any, Dict, cast
-import time
-from .models import ToolSpec
+
+from react_usc import ToolSpec
+
 
 def make_flaky_tool() -> ToolSpec:
     """
-    A simulated API client tool that mimics HTTP requests with various failure modes.
+    Create a simulated API client tool with various failure modes.
     
-    Commands simulate endpoints:
-    - "GET /api/v1/users/{id}": Requires a specific query param 'include_profile=true' (Arg Fix scenario).
-    - "POST /api/v1/sync/data": Simulates a flaky upstream service (Wait/Retry scenario).
-    - "DELETE /api/v1/admin/system": Simulates a forbidden endpoint (Abort scenario).
-    - "GET /health": Succeeds immediately.
+    This tool mimics HTTP requests with different scenarios:
+    - "GET /api/v1/users/{id}": Requires 'include_profile=true' param (Arg Fix scenario)
+    - "POST /api/v1/sync/data": Fails twice with 503, then succeeds (Wait/Retry scenario)
+    - "DELETE /api/v1/admin/system": Always forbidden (Abort scenario)
+    - "GET /health": Always succeeds
+    
+    Returns:
+        ToolSpec for the flaky API client tool
+        
+    Example:
+        >>> tool = make_flaky_tool()
+        >>> tool.name
+        'api_client'
     """
     
     # State to track attempts per command type
@@ -25,10 +41,12 @@ def make_flaky_tool() -> ToolSpec:
         params = args.get("params", {})
         
         # Scenario 1: RETRY (Arg Fix)
-        # "GET /api/v1/users/123" fails unless "include_profile" is True
+        # "GET /api/v1/users/123" fails unless "include_profile" is truthy
         if method == "GET" and "/api/v1/users/" in endpoint:
-            if params.get("include_profile") is True:
-                 return {"status": 200, "data": {"id": "123", "name": "Alice", "profile": "active"}}
+            include_profile = params.get("include_profile")
+            # Accept both boolean True and string "true" (LLMs sometimes return strings)
+            if include_profile is True or str(include_profile).lower() == "true":
+                return {"status": 200, "data": {"id": "123", "name": "Alice", "profile": "active"}}
             
             # Simulate a 400 Bad Request with a helpful message
             raise ValueError("400 Bad Request: Missing required query parameter 'include_profile' for user fetch.")

@@ -4,24 +4,37 @@ Optional A2A (Agent-to-Agent) wrapper layer.
 This module implements a basic wrapper to expose the LangGraphReActUSCAgent
 via a standard interface compatible with A2A protocols (like Google's A2A).
 
-It requires `fastapi` and `uvicorn` to run the server.
-"""
+Prerequisites:
+    pip install react-usc[a2a]
+    # or: pip install fastapi uvicorn
 
+Example:
+    >>> from react_usc import LangGraphReActUSCAgent
+    >>> from react_usc.integrations import A2AAgentWrapper, create_a2a_app
+    >>> 
+    >>> agent = LangGraphReActUSCAgent(...)
+    >>> wrapper = A2AAgentWrapper(agent=agent, agent_id="my-agent")
+    >>> app = create_a2a_app(wrapper)
+    >>> 
+    >>> # Run with uvicorn
+    >>> import uvicorn
+    >>> uvicorn.run(app, host="0.0.0.0", port=8000)
+"""
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .lc_agent import LangGraphReActUSCAgent
+from ..agent import LangGraphReActUSCAgent
 
 
 # --- A2A Schemas (Simplified) ---
 
 class AgentCapability(BaseModel):
+    """Describes a capability that an agent can perform."""
     name: str
     description: str
     input_schema: Dict[str, Any]
@@ -30,6 +43,8 @@ class AgentCapability(BaseModel):
 class AgentCard(BaseModel):
     """
     Metadata about the agent for discovery.
+    
+    This is returned at /.well-known/a2a.json
     """
     id: str
     name: str
@@ -66,6 +81,20 @@ class TaskOutput(BaseModel):
 class A2AAgentWrapper:
     """
     Wraps the LangGraphReActUSCAgent to provide A2A-compliant methods.
+    
+    Args:
+        agent: The agent instance to wrap
+        agent_id: Unique identifier for this agent
+        name: Human-readable name for the agent
+        description: Description of what the agent does
+        base_url: Base URL where the agent is hosted
+    
+    Example:
+        >>> wrapper = A2AAgentWrapper(
+        ...     agent=my_agent,
+        ...     agent_id="react-usc-demo",
+        ...     name="Demo Agent",
+        ... )
     """
 
     def __init__(
@@ -113,8 +142,10 @@ class A2AAgentWrapper:
     def execute_task(self, task_input: TaskInput) -> TaskOutput:
         """
         Synchronously executes a task.
-        In a production A2A implementation, this might push to a queue and return a 'processing' status.
-        Here we block for simplicity as the underlying agent is synchronous.
+        
+        In a production A2A implementation, this might push to a queue and 
+        return a 'processing' status. Here we block for simplicity as the 
+        underlying agent is synchronous.
         """
         try:
             # Run the underlying agent
@@ -140,13 +171,28 @@ class A2AAgentWrapper:
 def create_a2a_app(wrapper: A2AAgentWrapper) -> Any:
     """
     Creates a FastAPI app to serve the agent via A2A protocols.
-    Requires `fastapi` and `uvicorn`.
+    
+    Args:
+        wrapper: The A2AAgentWrapper instance
+    
+    Returns:
+        A FastAPI application instance
+    
+    Raises:
+        RuntimeError: If FastAPI is not installed
+    
+    Example:
+        >>> app = create_a2a_app(wrapper)
+        >>> import uvicorn
+        >>> uvicorn.run(app, host="0.0.0.0", port=8000)
     """
     try:
-        from fastapi import FastAPI, HTTPException
-        from fastapi.responses import JSONResponse
+        from fastapi import FastAPI
     except ImportError:
-        raise RuntimeError("FastAPI is required for A2A server. Install it with: pip install fastapi uvicorn")
+        raise RuntimeError(
+            "FastAPI is required for A2A server. Install with: "
+            "`pip install react-usc[a2a]` or `pip install fastapi uvicorn`"
+        )
 
     app = FastAPI(title=wrapper.name, description=wrapper.description, version="1.0.0")
 
@@ -164,4 +210,3 @@ def create_a2a_app(wrapper: A2AAgentWrapper) -> Any:
         return {"status": "ok"}
 
     return app
-

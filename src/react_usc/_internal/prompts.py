@@ -1,11 +1,21 @@
+"""
+Prompt building utilities for the ReAct USC Agent.
+
+This module provides functions to construct prompts for the reasoner,
+judge, and reflection models.
+"""
 from __future__ import annotations
 
 import json
 from typing import Any, Dict, Sequence, Tuple
 
-from .models import AgentConfig, ReasonerDecision, ToolSpec
+from ..config import AgentConfig
+from ..decisions import ReasonerDecision
+from ..types import ToolSpec
+
 
 def build_tools_block(tools: Sequence[ToolSpec]) -> str:
+    """Build a formatted block describing available tools."""
     parts = []
     for t in tools:
         parts.append(
@@ -19,8 +29,11 @@ def build_tools_block(tools: Sequence[ToolSpec]) -> str:
         )
     return "\n".join(parts)
 
+
 def _tool_name_list(tools: Sequence[ToolSpec]) -> str:
+    """Get a comma-separated list of tool names."""
     return ", ".join([t.name for t in tools])
+
 
 def _tool_examples_block(tools: Sequence[ToolSpec]) -> str:
     """
@@ -39,6 +52,7 @@ def _tool_examples_block(tools: Sequence[ToolSpec]) -> str:
 
 
 def reasoner_decision_to_json(d: ReasonerDecision) -> Dict[str, Any]:
+    """Convert a ReasonerDecision to a JSON-serializable dict."""
     return {
         "decision_type": d.decision_type,
         "tool_name": d.tool_name,
@@ -57,6 +71,7 @@ def build_reasoner_prompt(
     tools: Sequence[ToolSpec],
     path_id: int,
 ) -> Tuple[str, str]:
+    """Build system and user prompts for the reasoner model."""
     system = (
         "You are a REASONER model inside a ReAct-style agent.\n"
         "Follow the agent system instructions, then decide the single best next action.\n"
@@ -105,6 +120,7 @@ def build_judge_prompt(
     tools: Sequence[ToolSpec],
     config: AgentConfig,
 ) -> Tuple[str, str]:
+    """Build system and user prompts for the judge model."""
     system = (
         "You are the JUDGE model for a Universal Self-Consistency (USC) agent.\n"
         "You must pick the single best next decision from multiple candidates, or synthesize one.\n"
@@ -160,6 +176,7 @@ def build_judge_prompt(
     )
     return system, user
 
+
 def build_reflection_prompt(
     *,
     user_query: str,
@@ -168,6 +185,15 @@ def build_reflection_prompt(
     error: str,
     tools: Sequence[ToolSpec],
 ) -> Tuple[str, str]:
+    """Build prompts for the reflection model to debug failed tool calls."""
+    
+    # Find the specific tool that failed
+    tool_schema_str = "unknown"
+    for t in tools:
+        if t.name == tool_name:
+            tool_schema_str = json.dumps(t.input_schema, ensure_ascii=False)
+            break
+    
     system = (
         "You are a Tool Usage Expert debugging a failed tool call.\n"
         "Analyze the error and decide whether to RETRY with corrected args, WAIT for transient errors, or ABORT if the tool is inappropriate.\n"
@@ -184,22 +210,28 @@ def build_reflection_prompt(
             "",
             "FAILED TOOL CALL:",
             f"Tool: {tool_name}",
-            f"Args: {json.dumps(tool_args, ensure_ascii=False)}",
+            f"Original Args: {json.dumps(tool_args, ensure_ascii=False)}",
             f"Error: {error}",
             "",
-            "AVAILABLE TOOLS:",
-            build_tools_block(tools),
+            f"TOOL SCHEMA for {tool_name}:",
+            tool_schema_str,
             "",
             "DECISION RULES:",
-            "1. RETRY: If the error is a syntax error, invalid argument format, or hallucinated argument, and the tool IS appropriate for the query -> Generate corrected 'retry_args'.",
-            "2. WAIT: If the error looks transient (e.g. network timeout, rate limit, server error 5xx, connection reset) and arguments look correct -> Select WAIT to pause and retry with the SAME arguments.",
-            "3. ABORT: If the tool itself is not capable of handling the query (e.g. using calculator for search), or if you cannot fix it -> Provide an 'abort_suggestion' explaining why and what tool might be better.",
+            "1. RETRY: If the error indicates missing/invalid arguments that you can fix -> Generate COMPLETE 'retry_args' with ALL required fields plus corrections.",
+            "2. WAIT: If the error looks transient (e.g. 503, timeout, rate limit) -> Select WAIT to pause and retry with the SAME arguments.",
+            "3. ABORT: If the tool cannot handle this query or the error is unfixable (e.g. 403 Forbidden) -> Provide 'abort_suggestion'.",
+            "",
+            "CRITICAL FOR RETRY:",
+            "- 'retry_args' MUST include ALL required fields from the tool schema (endpoint, method, etc.)",
+            "- Copy unchanged fields from the original args, then add/fix the problematic fields",
+            "- For this error, you likely need to ADD a 'params' object with the missing parameter",
+            "",
+            "EXAMPLE (for missing parameter error):",
+            '{"analysis": "The error says include_profile is required. I need to add it to params.", "verdict": "RETRY", "retry_args": {"endpoint": "/api/v1/users/123", "method": "GET", "params": {"include_profile": true}}}',
             "",
             "OUTPUT_FORMAT:",
-            "Return ONLY a JSON object matching ReflectionDecision.",
-            "Do NOT wrap the JSON in markdown fences (no ```json).",
-            "If verdict is RETRY, 'retry_args' must be valid JSON matching the tool's schema.",
-            "If verdict is WAIT or ABORT, 'retry_args' should be null/omitted.",
+            "Return ONLY a JSON object with: analysis (string), verdict (RETRY|WAIT|ABORT), and retry_args (if RETRY) or abort_suggestion (if ABORT).",
+            "Do NOT wrap in markdown fences.",
             "",
             "JSON_ONLY:",
         ]
