@@ -11,7 +11,7 @@ These tests cover:
 from __future__ import annotations
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from react_usc import (
     AgentConfig,

@@ -9,6 +9,7 @@ These tests cover:
 """
 from __future__ import annotations
 
+import importlib.util
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -275,9 +276,7 @@ class TestCreateA2AApp(unittest.TestCase):
 
     def test_app_has_routes(self):
         """Test that created app has expected routes."""
-        try:
-            from fastapi import FastAPI
-        except ImportError:
+        if importlib.util.find_spec("fastapi") is None:
             self.skipTest("FastAPI not installed")
         
         wrapper = A2AAgentWrapper(agent=self.mock_agent)

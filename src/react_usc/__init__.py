@@ -165,7 +165,7 @@ from .exceptions import (
 # =============================================================================
 
 try:
-    from .providers import make_chat_vertex_ai
+    from .providers import make_chat_vertex_ai  # noqa: F401
 except ImportError:
     # langchain-google-genai not installed
     pass
@@ -176,12 +176,12 @@ except ImportError:
 
 try:
     from .integrations import (
-        A2AAgentWrapper,
-        AgentCapability,
-        AgentCard,
-        TaskInput,
-        TaskOutput,
-        create_a2a_app,
+        A2AAgentWrapper,  # noqa: F401
+        AgentCapability,  # noqa: F401
+        AgentCard,  # noqa: F401
+        TaskInput,  # noqa: F401
+        TaskOutput,  # noqa: F401
+        create_a2a_app,  # noqa: F401
     )
 except ImportError:
     # fastapi/uvicorn not installed

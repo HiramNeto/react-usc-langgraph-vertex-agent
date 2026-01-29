@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ._internal.llm_io import invoke_with_unified_fallback
 from ._internal.normalizers import normalize_judge_decision_obj, normalize_reasoner_decision_obj

@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import json
 import unittest
-from typing import Any, Dict, List, Optional, Tuple
-from unittest.mock import MagicMock, patch
+from typing import Dict, Optional
+from unittest.mock import MagicMock
 
 from react_usc._internal.llm_io import (
     _build_repair_prompt,
@@ -24,7 +24,6 @@ from react_usc._internal.normalizers import normalize_reasoner_decision_obj
 from react_usc._internal.validation import validate_reasoner_decision_dict
 from react_usc._internal.salvage import salvage_reasoner_final
 from react_usc._internal.schema import get_reasoner_decision_schema
-from react_usc.config import RetryConfig
 from react_usc.exceptions import JSONParseError
 
 

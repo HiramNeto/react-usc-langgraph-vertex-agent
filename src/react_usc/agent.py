@@ -175,7 +175,6 @@ class LangGraphReActUSCAgent:
         """
         _require_langchain()
         
-        self._models = models
         self._tools = ToolRegistry(tools)
         self._config = config
         

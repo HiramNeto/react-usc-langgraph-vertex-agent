@@ -64,16 +64,6 @@ class ReasonerDecision:
         """Check if this is a final answer decision."""
         return self.decision_type == "FINAL"
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary representation."""
-        return {
-            "decision_type": self.decision_type,
-            "tool_name": self.tool_name,
-            "tool_args": self.tool_args,
-            "final_answer": self.final_answer,
-            "brief_rationale": self.brief_rationale,
-            "expected_signal": self.expected_signal,
-        }
 
 
 # =============================================================================
@@ -121,16 +111,6 @@ class JudgeDecision:
         """Check if this is a final answer decision."""
         return self.decision_type == "FINAL"
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary representation."""
-        return {
-            "decision_type": self.decision_type,
-            "selected_index": self.selected_index,
-            "tool_name": self.tool_name,
-            "tool_args": self.tool_args,
-            "final_answer": self.final_answer,
-            "justification": self.justification,
-        }
     
     @classmethod
     def create_final(cls, answer: str, justification: str) -> "JudgeDecision":

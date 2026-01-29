@@ -9,13 +9,10 @@ This module provides lightweight validation for:
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from ..decisions import JudgeDecision, ReasonerDecision
 from ..types import DecisionType
-
-# Type alias for reflection verdict
-ReflectionVerdict = Literal["RETRY", "WAIT", "ABORT"]
 
 
 def _type_matches(value: Any, expected_type: str) -> bool:

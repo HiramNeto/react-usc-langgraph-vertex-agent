@@ -55,8 +55,7 @@ class TestChatModelProtocol(unittest.TestCase):
     def test_class_without_invoke(self):
         """Test that a class without invoke fails protocol check."""
         class NoInvokeModel:
-            def call(self, messages):
-                return "response"
+            pass
         
         model = NoInvokeModel()
         self.assertFalse(isinstance(model, ChatModelProtocol))
@@ -124,8 +123,6 @@ class TestMakeChatVertexAI(unittest.TestCase):
 
     def test_missing_dependency_raises(self):
         """Test that missing langchain-google-genai raises RuntimeError."""
-        from react_usc.providers.vertex import make_chat_vertex_ai
-        
         with patch.dict('sys.modules', {'langchain_google_genai': None}):
             # This should fail during import attempt
             # We need to mock the actual import

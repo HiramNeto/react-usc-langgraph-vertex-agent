@@ -201,12 +201,12 @@ def create_a2a_app(wrapper: A2AAgentWrapper) -> Any:
         return wrapper.get_agent_card()
 
     @app.post("/tasks", response_model=TaskOutput)
-    async def create_task(task: TaskInput):
+    async def create_task(task: TaskInput):  # noqa
         # Note: This is blocking. For high load, offload to a background task/worker.
         return wrapper.execute_task(task)
 
     @app.get("/health")
-    async def health_check():
+    async def health_check():  # noqa
         return {"status": "ok"}
 
     return app

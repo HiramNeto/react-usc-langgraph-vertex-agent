@@ -208,7 +208,7 @@ class LogContext:
         
         return self
     
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(self, _exc_type: Any, _exc_val: Any, _exc_tb: Any) -> None:
         _context.current = self._previous
 
 
