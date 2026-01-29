@@ -1,3 +1,9 @@
+"""
+Decision normalizers for the ReAct USC Agent.
+
+This module provides functions to normalize common model output deviations
+so that validation can succeed even when models produce slightly malformed output.
+"""
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -154,3 +160,48 @@ def normalize_judge_decision_obj(obj: Dict[str, Any]) -> Dict[str, Any]:
     return obj
 
 
+def normalize_reflection_decision_obj(obj: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalize common model deviations for reflection decisions:
+      - verdict case normalization: "retry" -> "RETRY"
+      - empty string optional fields -> None
+      - ensure analysis is present
+    """
+    # Normalize verdict case
+    verdict = obj.get("verdict")
+    if isinstance(verdict, str):
+        verdict_norm = verdict.strip().upper()
+        if verdict_norm in {"RETRY", "WAIT", "ABORT"}:
+            obj["verdict"] = verdict_norm
+        else:
+            # Default to ABORT for unknown verdicts
+            obj["verdict"] = "ABORT"
+    elif verdict is None:
+        obj["verdict"] = "ABORT"
+    
+    # Ensure analysis is a string
+    analysis = obj.get("analysis")
+    if not isinstance(analysis, str) or not analysis.strip():
+        obj["analysis"] = "Analysis not provided by reflection model."
+    
+    # Normalize empty strings to None for optional fields
+    for key in ("abort_suggestion",):
+        val = obj.get(key)
+        if val == "":
+            obj[key] = None
+    
+    # For RETRY, ensure retry_args is a dict (or None)
+    if obj.get("verdict") == "RETRY":
+        retry_args = obj.get("retry_args")
+        if retry_args is not None and not isinstance(retry_args, dict):
+            obj["retry_args"] = None
+    else:
+        # For non-RETRY verdicts, retry_args should be None
+        obj["retry_args"] = None
+    
+    # For ABORT, ensure abort_suggestion is present
+    if obj.get("verdict") == "ABORT":
+        if not obj.get("abort_suggestion"):
+            obj["abort_suggestion"] = "Reflection decided to abort without providing a suggestion."
+    
+    return obj

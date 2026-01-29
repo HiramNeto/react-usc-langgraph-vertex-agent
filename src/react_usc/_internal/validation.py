@@ -1,11 +1,22 @@
+"""
+Validation utilities for the ReAct USC Agent.
+
+This module provides lightweight validation for:
+- JSON schema validation (subset)
+- ReasonerDecision validation
+- JudgeDecision validation
+- ReflectionDecision validation
+"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-from .models import DecisionType, JudgeDecision, ReasonerDecision
+from ..decisions import JudgeDecision, ReasonerDecision
+from ..types import DecisionType
 
 
 def _type_matches(value: Any, expected_type: str) -> bool:
+    """Check if a value matches the expected JSON schema type."""
     if expected_type == "string":
         return isinstance(value, str)
     if expected_type == "number":
@@ -55,6 +66,12 @@ def validate_json_obj(obj: Any, schema: Dict[str, Any]) -> List[str]:
 
 
 def validate_reasoner_decision_dict(d: Any) -> Tuple[Optional[ReasonerDecision], List[str]]:
+    """
+    Validate a dict and convert to ReasonerDecision if valid.
+    
+    Returns:
+        Tuple of (decision, errors). If errors is non-empty, decision is None.
+    """
     errors: List[str] = []
     if not isinstance(d, dict):
         return None, ["ReasonerDecision must be an object"]
@@ -103,6 +120,12 @@ def validate_reasoner_decision_dict(d: Any) -> Tuple[Optional[ReasonerDecision],
 
 
 def validate_judge_decision_dict(d: Any) -> Tuple[Optional[JudgeDecision], List[str]]:
+    """
+    Validate a dict and convert to JudgeDecision if valid.
+    
+    Returns:
+        Tuple of (decision, errors). If errors is non-empty, decision is None.
+    """
     errors: List[str] = []
     if not isinstance(d, dict):
         return None, ["JudgeDecision must be an object"]
@@ -150,3 +173,50 @@ def validate_judge_decision_dict(d: Any) -> Tuple[Optional[JudgeDecision], List[
     )
 
 
+def validate_reflection_decision_dict(d: Any) -> Tuple[Optional[Dict[str, Any]], List[str]]:
+    """
+    Validate a dict for reflection decision and return validated dict if valid.
+    
+    Unlike the other validators, this returns a validated dict (not a dataclass)
+    to avoid circular imports with plugins.py which defines ReflectionResult.
+    
+    Returns:
+        Tuple of (validated_dict, errors). If errors is non-empty, validated_dict is None.
+    """
+    errors: List[str] = []
+    if not isinstance(d, dict):
+        return None, ["ReflectionDecision must be an object"]
+    
+    # Validate verdict
+    verdict = d.get("verdict")
+    if verdict not in ("RETRY", "WAIT", "ABORT"):
+        errors.append("verdict must be RETRY, WAIT, or ABORT")
+    
+    # Validate analysis
+    analysis = d.get("analysis")
+    if not isinstance(analysis, str) or not analysis.strip():
+        errors.append("analysis must be a non-empty string")
+    
+    # Validate retry_args for RETRY verdict
+    retry_args = d.get("retry_args")
+    if verdict == "RETRY":
+        if retry_args is not None and not isinstance(retry_args, dict):
+            errors.append("retry_args must be an object or null for RETRY")
+    
+    # Validate abort_suggestion for ABORT verdict
+    abort_suggestion = d.get("abort_suggestion")
+    if abort_suggestion is not None and not isinstance(abort_suggestion, str):
+        errors.append("abort_suggestion must be a string or null")
+    
+    if errors:
+        return None, errors
+    
+    return (
+        {
+            "verdict": cast(str, verdict),
+            "analysis": cast(str, analysis),
+            "retry_args": cast(Optional[Dict[str, Any]], retry_args),
+            "abort_suggestion": cast(Optional[str], abort_suggestion),
+        },
+        [],
+    )
